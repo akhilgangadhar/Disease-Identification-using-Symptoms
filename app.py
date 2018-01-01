@@ -24,10 +24,12 @@ def movie_list():
 		movie_list = query(title_to_id(form.movie.data))
 	return render_template('movie_list.html',movie_list = movie_list) 
 
+# function for converting the title given to an id 
 def title_to_id(name):
 	arr = movies.index[movies["title"] == name].tolist()
 	return arr[0]
 
+#function to load pkl files
 def load_files():
 	import pickle
 	global X,nbrs,movies;
@@ -41,6 +43,7 @@ def load_files():
 	X = pickle.load(pickle_in)
 	pickle_in.close();
 
+#function to get the nearest neighbours
 def query(id_entry):
 	xtest = X.iloc[id_entry]
 	xtest = xtest.values.reshape(1, -1)
@@ -50,6 +53,7 @@ def query(id_entry):
 		l.append(movies.iloc[indice]["title"]);
 	return l;
 
+#as the name indicates this is where the pkl files are created and stored
 def classifier():
 	import pandas as pd
 	import numpy as np
