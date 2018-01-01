@@ -1,6 +1,10 @@
 from flask import Flask, render_template, request, url_for
 from flask_wtf import FlaskForm
 from wtforms import Form, TextAreaField, validators, StringField
+import numpy as np
+import pandas as pd
+import pickle
+from sklearn.neighbors import NearestNeighbors
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'Thisissecret';
@@ -10,56 +14,61 @@ class SearchForm(FlaskForm):
 
 @app.route('/')
 def index():
-	classifier();
-	load_files();
 	form = SearchForm();
 	if form.validate_on_submit():
-		return query(int(form.movie.data));
+		return sorted_list(query(title_to_id(form.movie.data)));
 	return render_template('app.html', form=form);
 
 @app.route('/movie_list',methods=['POST'])
 def movie_list():
 	form = SearchForm();
 	if form.validate_on_submit():
-		movie_list = query(title_to_id(form.movie.data))
+		movie_list = sorted_list(title_to_id(form.movie.data))
 	return render_template('movie_list.html',movie_list = movie_list) 
 
-# function for converting the title given to an id 
 def title_to_id(name):
 	arr = movies.index[movies["title"] == name].tolist()
 	return arr[0]
 
-#function to load pkl files
+def sorted_list(id_entry):
+	l = query(id_entry)
+	l = [s+1 for s in l];
+	d = []
+	for x in l:
+		scores = ratings.loc[ratings["movieId"] == x].rating;
+		mean_score = np.mean(scores);
+		if mean_score is not None:
+			d.append([x-1,mean_score]);
+	d = sorted(d, key=lambda x: x[1]);
+	u = [];
+	for b in d:
+		u.append(movies.iloc[b[0]]["title"]);
+	return u;
+
 def load_files():
-	import pickle
-	global X,nbrs,movies;
+	global X,nbrs,movies,ratings;
 	pickle_in = open("nbrs.pickle","rb")
 	nbrs = pickle.load(pickle_in)
 	pickle_in.close();
 	pickle_in = open("movies.pickle","rb")
 	movies = pickle.load(pickle_in)
 	pickle_in.close();
+	pickle_in = open("rating.pickle","rb")
+	ratings = pickle.load(pickle_in)
+	pickle_in.close();
 	pickle_in = open("X.pickle","rb")
 	X = pickle.load(pickle_in)
 	pickle_in.close();
 
-#function to get the nearest neighbours
 def query(id_entry):
 	xtest = X.iloc[id_entry]
 	xtest = xtest.values.reshape(1, -1)
 	distances, indices = nbrs.kneighbors(xtest)
-	l = []
-	for indice in indices[0][:]:
-		l.append(movies.iloc[indice]["title"]);
-	return l;
+	return indices[0][:];
 
-#as the name indicates this is where the pkl files are created and stored
 def classifier():
-	import pandas as pd
-	import numpy as np
-	import pickle
-	from sklearn.neighbors import NearestNeighbors
 	movies = pd.read_csv("data/movie.csv");
+	ratings = pd.read_csv("data/rating.csv",nrows=55491);
 	year = []
 	titles = []
 
@@ -75,6 +84,9 @@ def classifier():
 	movies['year'] = pd.Series(year)
 	pickle_out = open("movies.pickle","wb")
 	pickle.dump(movies, pickle_out)
+	pickle_out.close()
+	pickle_out = open("rating.pickle","wb")
+	pickle.dump(ratings, pickle_out)
 	pickle_out.close()
 	genre_labels = set()
 	for s in movies['genres'].str.split('|').values:
@@ -92,4 +104,6 @@ def classifier():
 	pickle_out.close()
 
 if __name__  == '__main__':
+	classifier();
+	load_files();
 	app.run(debug=True)
